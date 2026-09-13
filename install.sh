@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Install macropad-manager on Arch / CachyOS + KDE Plasma (Wayland or X11).
 #
-#   ./install.sh                    # default: Super+Q cycles profiles
+#   ./install.sh                    # default: Ctrl+Shift+Q cycles profiles
 #   ./install.sh Meta+F9            # pick a different hotkey
 #
 # Sets up: the pipx package, a systemd user unit, the Plasma HUD plasmoid,
-# and KDE global shortcuts (Super+Q to cycle, knob chords for window switching
-# via KWin). Shortcuts made by hand in kglobalshortcutsrc take effect at the
-# next Plasma login, so the script ends by telling you to log out and back in -
-# the same deal the original GNOME version had with its Shell extension.
+# and KDE global shortcuts (Ctrl+Shift+Q to cycle, knob chords for window
+# switching via KWin). Shortcuts made by hand in kglobalshortcutsrc take effect
+# at the next Plasma login, so the script ends by telling you to log out and
+# back in - the same deal the original GNOME version had with its Shell
+# extension.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -55,9 +56,14 @@ add_kwin_chord() {
 }
 
 normalize_hotkey() {
-    # Accept GNOME-style (<Super>q) or KDE-style (Meta+Q) hotkeys and turn them
-    # into a Qt sequence, uppercasing the final key (Qt wants Meta+Q, not Meta+q).
+    # Accept GNOME-style (<Control><Shift>q / <Super>q) or KDE-style
+    # (Ctrl+Shift+Q / Meta+Q) hotkeys and turn them into a Qt sequence,
+    # uppercasing the final key (Qt wants Ctrl+Shift+Q, not Ctrl+Shift+q).
     local h="$1"
+    h="${h//<Control>/Ctrl+}"
+    h="${h//<Shift>/Shift+}"
+    h="${h//<Alt>/Alt+}"
+    h="${h//<Win>/Meta+}"
     h="${h//<Super>/Meta+}"
     h="${h//<>/}"
     h="${h//>/}"
@@ -138,9 +144,23 @@ fi
 say "Registering KDE global shortcuts..."
 mkdir -p "$HOME/.local/share/applications"
 
-# Super+Q -> macropad-cycle (a command shortcut, like System Settings'
+# GUI launcher entry (shows up in the app menu)
+cat > "$HOME/.local/share/applications/macropad-manager.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Macropad Manager
+GenericName=Macropad profile editor
+Comment=Edit, validate and upload CH57x macropad profiles
+Exec=$HOME/.local/bin/macropad-manager
+Icon=input-keyboard
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+EOF
+
+# Ctrl+Shift+Q -> macropad-cycle (a command shortcut, like System Settings'
 # "Add New -> Command or Script": a .desktop file + _launch action).
-HOTKEY_ARG="${1:-<Super>q}"
+HOTKEY_ARG="${1:-<Control><Shift>q}"
 HOTKEY="$(normalize_hotkey "$HOTKEY_ARG")"
 cat > "$HOME/.local/share/applications/macropad-cycle.desktop" <<EOF
 [Desktop Entry]
@@ -164,12 +184,15 @@ add_kwin_chord "Walk Through Windows (Reverse)" "$CHORD_PREV"
 add_kwin_chord "Overview" "$CHORD_OVERVIEW"
 add_kwin_chord "Walk Through Windows" "$CHORD_NEXT"
 
+# make the GUI launcher appear in the app menu right away (no re-login needed)
+command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 &>/dev/null || true
+
 # --- done ---------------------------------------------------------------------
 
 say "Done. Press $HOTKEY to cycle profiles; run 'macropad-manager' for the GUI."
 echo
 echo "  Last step - Log out and back in so Plasma loads:"
-echo "    * the new Super+Q shortcut and the knob chords, and"
+echo "    * the new $HOTKEY shortcut and the knob chords, and"
 echo "    * the Macropad HUD widget."
 echo
 echo "  Then add the HUD: right-click the desktop -> Add Widgets -> Macropad HUD."

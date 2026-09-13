@@ -5,8 +5,8 @@ from **GNOME Shell / Ubuntu** to **KDE Plasma 6 on Wayland**, and from the
 original **3-key pad** to the **6-button (3x2) + 1-knob** CH57x macropads
 (VID:PID `1189:8890`) on Arch / CachyOS.
 
-A single `Super+Q` press cycles to the next profile and re-flashes the device,
-so the same six keys can be copy/paste shortcuts while coding and media
+A single `Ctrl+Shift+Q` press cycles to the next profile and re-flashes the
+device, so the same six keys can be copy/paste shortcuts while coding and media
 controls the rest of the time. An always-present Plasma widget shows what the
 keys currently do.
 
@@ -44,7 +44,7 @@ Ubuntu with the 3-key pad only.
 |---|---|
 | **HUD** (`org.flanshaw.macropadhud`) | Plasma 6 widget: compact, always-on-screen view of the keycaps |
 | **`macropad-manager`** | GTK4/libadwaita GUI for editing, validating and uploading profiles |
-| **`macropad-cycle`** | CLI that switches profile and flashes the device — what `Super+Q` runs |
+| **`macropad-cycle`** | CLI that switches profile and flashes the device — what `Ctrl+Shift+Q` runs |
 | **`macropad-status`** | CLI that prints the current state as JSON (consumed by the HUD) |
 | **`macropad-window`** | Kept for compatibility; KWin's native shortcuts do the job now |
 | **`macropad-daemon`** | systemd `--user` oneshot that re-flashes the active profile at login |
@@ -64,7 +64,7 @@ profile name to switch to it immediately; click the gear to open the editor.
 <img src="docs/images/config.png" alt="The GTK4 editor: key diagram, per-slot label and binding fields, and validate/save/upload actions" width="720">
 
 The diagram across the top mirrors the HUD. Below it, each slot has a **Label**
-field and a **Binding** field. The sidebar is the `Super+Q` cycle order —
+field and a **Binding** field. The sidebar is the `Ctrl+Shift+Q` cycle order —
 reorder it with the arrows, add with **+**, remove with the bin.
 
 ---
@@ -105,7 +105,7 @@ unit, seeds a couple of starter profiles, copies the HUD into
 `~/.local/share/plasma/plasmoids/`, and registers the shortcuts in
 `~/.config/kglobalshortcutsrc`:
 
-- `Super+Q` runs `macropad-cycle` (a *command shortcut* via a
+- `Ctrl+Shift+Q` runs `macropad-cycle` (a *command shortcut* via a
   `macropad-cycle.desktop` entry), and
 - the knob chords are added to KWin's own `Walk Through Windows` /
   `Walk Through Windows (Reverse)` / `Overview` shortcuts.
@@ -120,7 +120,7 @@ unit, seeds a couple of starter profiles, copies the HUD into
 
 ## Usage
 
-- **`Super+Q`** — cycle to the next profile. Works from any application and
+- **`Ctrl+Shift+Q`** — cycle to the next profile. Works from any application and
   shows a desktop notification naming the profile that was loaded.
 - **HUD** — click a profile to jump straight to it; click ⚙ to open the editor.
 - **`macropad-manager`** — the GUI. Each binding row has a **Label** field

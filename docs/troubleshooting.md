@@ -30,7 +30,7 @@ compiled cache at load time, so editing the file on disk is not enough.
 Changes to `profiles/*.yaml` need no reload — the HUD re-polls every 1.5 s.
 See [development.md](development.md) for the full matrix.
 
-## `Super+Q` does nothing
+## `Ctrl+Shift+Q` does nothing
 
 1. Confirm the command shortcut is registered:
 
@@ -38,7 +38,7 @@ See [development.md](development.md) for the full matrix.
    kreadconfig6 --file kglobalshortcutsrc --group macropad-cycle.desktop/_launch --key _launch
    ```
 
-   It should print something like `Meta+Q,Meta+Q,Macropad Cycle`.
+   It should print something like `Ctrl+Shift+Q,Ctrl+Shift+Q,Macropad Cycle`.
 
 2. Confirm the `.desktop` file exists:
 
@@ -129,8 +129,8 @@ systemctl --user status macropad-daemon.service
 systemctl --user enable --now macropad-daemon.service
 ```
 
-If it runs before the device is ready, just press `Super+Q` twice to cycle back
-around, or run `macropad-cycle --restore`.
+If it runs before the device is ready, just press `Ctrl+Shift+Q` twice to cycle
+back around, or run `macropad-cycle --restore`.
 
 ## Profiles disappeared from the cycle
 

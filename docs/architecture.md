@@ -7,7 +7,7 @@ or a bus; the filesystem is the integration point, and the HUD polls the CLI
 for changes.
 
 ```
-      Super+Q (Plasma) ─▶  macropad-cycle ──┐
+      Ctrl+Shift+Q (Plasma) ─▶  macropad-cycle ──┐
                                             │  writes state.json
    HUD click        ─▶  macropad-cycle ────┤  uploads via ch57x-keyboard-tool
                                             │

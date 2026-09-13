@@ -27,7 +27,7 @@ Which profiles are in the cycle, and which one is active.
 | Field | Type | Meaning |
 |---|---|---|
 | `active_index` | integer | Index into `order` of the currently loaded profile |
-| `order` | array of strings | Profile filenames, in `Super+Q` cycle order |
+| `order` | array of strings | Profile filenames, in `Ctrl+Shift+Q` cycle order |
 
 The file is self-healing on read: filenames whose profile no longer exists are
 dropped, and `active_index` is wrapped into range. A missing file is treated as
@@ -126,7 +126,7 @@ Registration lives in `~/.local/share/applications/` and
 
 | Component | Action | Binding |
 |---|---|---|
-| `macropad-cycle.desktop` (command shortcut) | `_launch` | `Meta+Q` (default `Super+Q`) |
+| `macropad-cycle.desktop` (command shortcut) | `_launch` | `Ctrl+Shift+Q` (default) |
 | `kwin` → `Walk Through Windows (Reverse)` | — | gains `Ctrl+Alt+Shift+F9` |
 | `kwin` → `Overview` | — | gains `Ctrl+Alt+Shift+F10` |
 | `kwin` → `Walk Through Windows` | — | gains `Ctrl+Alt+Shift+F11` |
