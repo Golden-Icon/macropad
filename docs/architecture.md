@@ -133,6 +133,6 @@ rides along in the same file and profiles remain directly usable with the CLI.
 
 **Plasma command shortcuts instead of raw key grabbing.** Global key grabs are
 unreliable or blocked under Wayland. A command shortcut — a `.desktop` file
-with `X-KDE-GlobalAccel-CommandShortcut=true` plus its `_launch` action in
-`kglobalshortcutsrc` — is the Plasma-supported route, and it means no process
-has to be listening.
+with `X-KDE-GlobalAccel-CommandShortcut=true` plus its `_launch` action in the
+`[services]` section of `kglobalshortcutsrc` — is the Plasma-supported route,
+and it means no process has to be listening.

@@ -35,10 +35,15 @@ See [development.md](development.md) for the full matrix.
 1. Confirm the command shortcut is registered:
 
    ```bash
-   kreadconfig6 --file kglobalshortcutsrc --group macropad-cycle.desktop/_launch --key _launch
+   kreadconfig6 --file kglobalshortcutsrc --group services --group macropad-cycle.desktop --key _launch
    ```
 
-   It should print something like `Ctrl+Shift+Q,Ctrl+Shift+Q,Macropad Cycle`.
+   It should print the shortcut as a **single value**, e.g. `Ctrl+Shift+Q`.
+
+   > Older installers wrote a `[macropad-cycle.desktop/_launch]` group with a
+   > `shortcut,default,description` triplet. Plasma loads that legacy layout as
+   > a dormant component that never fires. Re-running `./install.sh` rewrites
+   > the entry in the `[services]` form the daemon actually reads.
 
 2. Confirm the `.desktop` file exists:
 

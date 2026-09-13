@@ -126,7 +126,7 @@ Registration lives in `~/.local/share/applications/` and
 
 | Component | Action | Binding |
 |---|---|---|
-| `macropad-cycle.desktop` (command shortcut) | `_launch` | `Ctrl+Shift+Q` (default) |
+| `[services]` → `macropad-cycle.desktop` (command shortcut) | `_launch` | `Ctrl+Shift+Q` (default) |
 | `kwin` → `Walk Through Windows (Reverse)` | — | gains `Ctrl+Alt+Shift+F9` |
 | `kwin` → `Overview` | — | gains `Ctrl+Alt+Shift+F10` |
 | `kwin` → `Walk Through Windows` | — | gains `Ctrl+Alt+Shift+F11` |
@@ -135,5 +135,11 @@ The KWin chords are *added* to the existing shortcuts (as extra alternative
 bindings), so the default `Alt+Tab` / `Meta+Tab` / `Meta+W` behaviour is
 unchanged. Plasma only (re)reads these at session start, hence the "log out and
 back in" step after installing.
+
+Command shortcuts live in a `[services][<app>.desktop]` group whose `_launch`
+value is the bare shortcut string — the friendly name and default come from the
+`.desktop` file's `Name` / `X-KDE-Shortcuts` entries instead of the config. A
+copy of the desktop file is also kept in `~/.local/share/kglobalaccel/` so the
+daemon can always rediscover the app, even before `ksycoca` has indexed it.
 
 Changes are visible in System Settings → Shortcuts.

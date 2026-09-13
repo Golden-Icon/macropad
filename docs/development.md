@@ -95,5 +95,6 @@ udev rule in place (AUR `ch57x-keyboard-tool` ships it, or see the README).
   never "stick". That is why the knob types full chords handled by KWin's
   built-in `Walk Through Windows` / `Overview` actions instead.
 - Plasma command shortcuts are wired as a `.desktop` file
-  (`X-KDE-GlobalAccel-CommandShortcut=true`) plus a `_launch` action in
-  `kglobalshortcutsrc`. The action key is literally named `_launch`.
+  (`X-KDE-GlobalAccel-CommandShortcut=true`) plus a `_launch` action under
+  `[services][<app>.desktop]` in `kglobalshortcutsrc`, with the bare shortcut
+  string as its value. The action key is literally named `_launch`.

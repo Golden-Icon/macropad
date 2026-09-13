@@ -159,9 +159,14 @@ StartupNotify=true
 EOF
 
 # Ctrl+Shift+Q -> macropad-cycle (a command shortcut, like System Settings'
-# "Add New -> Command or Script": a .desktop file + _launch action).
+# "Add New -> Command or Script": a .desktop file + a _launch action).
+# The daemon (kglobalacceld, hosted by KWin on Wayland) only honours command
+# shortcuts stored in a [services][<app>.desktop] group whose _launch value is
+# the bare shortcut string - NOT the legacy "[comp]/_launch group + comma
+# triplet" layout, which loads a dormant component that never fires.
 HOTKEY_ARG="${1:-<Control><Shift>q}"
 HOTKEY="$(normalize_hotkey "$HOTKEY_ARG")"
+mkdir -p "$HOME/.local/share/applications" "$HOME/.local/share/kglobalaccel"
 cat > "$HOME/.local/share/applications/macropad-cycle.desktop" <<EOF
 [Desktop Entry]
 Name=Macropad Cycle
@@ -174,10 +179,20 @@ Categories=Utility;
 NoDisplay=true
 X-KDE-GlobalAccel-CommandShortcut=true
 EOF
-rc macropad-cycle.desktop _k_friendly_name "Macropad Cycle"
-rc macropad-cycle.desktop/_launch _swapped false
-rc macropad-cycle.desktop/_launch _triggered true
-rc macropad-cycle.desktop/_launch _launch "$HOTKEY,$HOTKEY,Macropad Cycle"
+# keep a copy where the daemon always looks, even before ksycoca indexes it
+cp "$HOME/.local/share/applications/macropad-cycle.desktop" \
+   "$HOME/.local/share/kglobalaccel/macropad-cycle.desktop"
+CFG="$HOME/.config/kglobalshortcutsrc"
+STATE="$HOME/.local/state/kglobalshortcutsstaterc"
+# drop the legacy layout so it cannot leave a dormant phantom component behind
+for t in _launch _swapped _triggered _k_friendly_name; do
+    kwriteconfig6 --file "$CFG"   --group "macropad-cycle.desktop/_launch" --key "$t" --delete
+    kwriteconfig6 --file "$CFG"   --group "macropad-cycle.desktop"         --key "$t" --delete
+    kwriteconfig6 --file "$STATE" --group "macropad-cycle.desktop/_launch" --key "$t" --delete
+done
+# write the supported layout: the shortcut plus its state serial
+kwriteconfig6 --file "$CFG"   --group services --group macropad-cycle.desktop --key _launch "$HOTKEY"
+kwriteconfig6 --file "$STATE" --group services --group macropad-cycle.desktop --key _launch --type int 1
 
 # knob chords -> KWin's native walk-through / overview
 add_kwin_chord "Walk Through Windows (Reverse)" "$CHORD_PREV"
