@@ -1,0 +1,25 @@
+model: ch57x-2
+orientation: normal
+rows: 2
+columns: 3
+knobs: 1
+
+layers:
+  - buttons:
+      # Row 1 (top): transport
+      - ["prev", "play", "next"]
+      # Row 2 (bottom): volume
+      - ["volumeup", "mute", "volumedown"]
+    knobs:
+      - ccw: "volumedown"
+        press: "play"
+        cw: "volumeup"
+
+labels:
+  button1: PREV
+  button2: PLAY/PAUSE
+  button3: NEXT
+  button4: VOL UP
+  button5: MUTE
+  button6: VOL DN
+  knob_cw: VOL

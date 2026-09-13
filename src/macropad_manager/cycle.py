@@ -1,7 +1,7 @@
 """macropad-cycle: switch the active profile and flash it.
 
-Invoked by the GNOME custom keybinding (Super+Q by default) with no arguments
-to advance to the next profile, and by the HUD extension with --set to jump
+Invoked by the Plasma command shortcut (Super+Q by default) with no arguments
+to advance to the next profile, and by the HUD widget with --set to jump
 straight to a named profile.
 """
 

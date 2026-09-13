@@ -1,11 +1,11 @@
 # Macropad Layer Manager
 
-Profile ("layer") manager for CH57x-based **3-key + 1-knob** USB macropads
-(VID:PID `1189:8890`) on Ubuntu 24.04+ / GNOME.
+Profile ("layer") manager for CH57x-based **6-key (3x2) + 1-knob** USB macropads
+(VID:PID `1189:8890`) on Arch / CachyOS with KDE Plasma 6 (Wayland).
 
 A single `Super+Q` press cycles to the next profile and re-flashes the device,
-so the same three keys can be copy/paste shortcuts while coding and media
-controls the rest of the time. An always-present desktop widget shows what the
+so the same six keys can be copy/paste shortcuts while coding and media
+controls the rest of the time. An always-present Plasma widget shows what the
 keys currently do.
 
 <p align="center">
@@ -22,15 +22,15 @@ CLI, and profiles are plain `ch57x-keyboard-tool` config files.
 
 | Component | What it is |
 |---|---|
-| **HUD** (`macropad-hud@flanshaw.org`) | GNOME Shell extension: compact always-on-screen widget, bottom-left |
+| **HUD** (`org.flanshaw.macropadhud`) | Plasma 6 widget: compact, always-on-screen view of the keycaps |
 | **`macropad-manager`** | GTK4/libadwaita GUI for editing, validating and uploading profiles |
 | **`macropad-cycle`** | CLI that switches profile and flashes the device — what `Super+Q` runs |
 | **`macropad-status`** | CLI that prints the current state as JSON (consumed by the HUD) |
-| **`macropad-window`** | CLI that drives window focus from the knob, via the HUD extension |
+| **`macropad-window`** | Kept for compatibility; KWin's native shortcuts do the job now |
 | **`macropad-daemon`** | systemd `--user` oneshot that re-flashes the active profile at login |
 
-The HUD reads state and profiles straight from disk and watches them for
-changes, so the GUI does not need to be running for anything else to work.
+The HUD polls `macropad-status` straight from disk, so the GUI does not need to
+be running for anything else to work.
 
 ### The HUD
 
@@ -51,13 +51,11 @@ reorder it with the arrows, add with **+**, remove with the bin.
 
 ## Requirements
 
-- Ubuntu 24.04+ with GNOME (tested on GNOME Shell 50, Wayland)
+- Arch / CachyOS with KDE Plasma 6 (Wayland)
 - Python 3.11+
-- `ch57x-keyboard-tool` on `PATH` — install with
-  `cargo install ch57x-keyboard-tool` or grab a release binary
-- PyGObject with GTK 4 and libadwaita (`python3-gi`, `gir1.2-adw-1` — present by
-  default on Ubuntu GNOME)
-- `pipx` (`sudo apt install pipx`)
+- `ch57x-keyboard-tool` on `PATH` — the AUR package (with a udev rule) is easiest
+- `python-yaml`, `python-gobject`, `gtk4`, `libadwaita`, `python-pipx`,
+  `qt6-tools`, `plasma-workspace` — `install.sh` installs anything missing
 
 ### Device permissions
 
@@ -83,12 +81,20 @@ cd macropad
 ```
 
 The installer pipx-installs the package, installs and enables the systemd user
-unit, copies the GNOME Shell extension into place and enables it, and registers
-the `Super+Q` custom keybinding via `gsettings`.
+unit, seeds a couple of starter profiles, copies the HUD into
+`~/.local/share/plasma/plasmoids/`, and registers the shortcuts in
+`~/.config/kglobalshortcutsrc`:
 
-> **Log out and back in afterwards.** GNOME Shell only scans for extensions at
-> session start, so the HUD will not appear until you do. Everything else works
-> immediately.
+- `Super+Q` runs `macropad-cycle` (a *command shortcut* via a
+  `macropad-cycle.desktop` entry), and
+- the knob chords are added to KWin's own `Walk Through Windows` /
+  `Walk Through Windows (Reverse)` / `Overview` shortcuts.
+
+> **Log out and back in afterwards.** Plasma (re)loads global shortcuts and
+> scans `plasmoids/` at session start, so the hotkeys and the HUD appear after
+> you do. Then: right-click the desktop → *Add Widgets* → **Macropad HUD**.
+> (On the desktop it sits on the wallpaper; on a panel it floats above
+> windows.)
 
 ---
 
@@ -112,25 +118,26 @@ that media keys are `prev` / `play` / `next`, not `prevsong` and friends.
 
 ### Switching windows with the knob
 
-The `BT GM CL` profile uses the knob to walk between open windows: rotate to
-move focus one window at a time, press to toggle the Activities overview.
+The window profile uses the knob to walk between open windows: rotate to move
+focus one window at a time, press to toggle the Overview.
 
-`alt-tab` cannot do this. The macropad releases every modifier between detents,
-so GNOME's switcher — which needs Alt held down — just flips between the two
-most recent windows however far you turn. Instead:
+`alt-tab` cannot do this directly: the macropad releases every modifier between
+detents, so a key combo that needs a modifier held down just flips between the
+two most recent windows however far you turn. So the knob *pretends* to type a
+full chord, and KWin's own global shortcuts pick it up:
 
 ```
-knob CCW   -> ctrl-alt-shift-f9   ┐   GNOME custom      ┐  macropad-window   ┐  D-Bus to the
-knob press -> ctrl-alt-shift-f10  ├─> keybindings       ├─ prev/overview/    ├─ HUD extension,
-knob CW    -> ctrl-alt-shift-f11  ┘                     ┘  next              ┘  which moves focus
+knob CCW   -> Ctrl+Alt+Shift+F9   ->  Walk Through Windows (Reverse)
+knob press -> Ctrl+Alt+Shift+F10  ->  Overview
+knob CW    -> Ctrl+Alt+Shift+F11  ->  Walk Through Windows
 ```
 
-The extension does the switching because on Wayland only GNOME Shell may move
-focus between windows. It orders windows by creation, not most-recently-used,
-so a full turn visits every window once instead of oscillating between two.
+No helper is needed — KWin handles these natively on Wayland, walks every
+window once on a full turn, and the shortcuts keep their original default
+bindings (`Alt+Tab`, `Metak+Tab`, `Meta+W`) as alternatives.
 
-`install.sh` registers those three chords as hidden hotkeys. To use the knob
-this way in another profile, set its `ccw` / `press` / `cw` to the same chords.
+`install.sh` adds those three chords to the KWin actions. To use the knob this
+way in another profile, set its `ccw` / `press` / `cw` to the same chords.
 
 ---
 
@@ -140,19 +147,10 @@ Everything lives in `~/.config/macropad-manager/`:
 
 ```
 state.json      {"active_index": 0, "order": ["default.yaml", "media.yaml"]}
-hud.json        {"stacking": "top", "font_delta": 2}
 profiles/
     default.yaml
     media.yaml
 ```
-
-`hud.json` is read live — changes apply within ~250ms, no restart:
-
-| Key | Values | Meaning |
-|---|---|---|
-| `stacking` | `top` (default) | Floats above windows, hides for fullscreen apps |
-| | `desktop` | Below all windows, on the desktop itself |
-| `font_delta` | integer, default `2` | Pixels added to every HUD font (may be negative) |
 
 See [docs/configuration.md](docs/configuration.md) for the full reference.
 
@@ -165,12 +163,13 @@ live under an extra `labels:` key, which the CLI ignores:
 ```yaml
 model: ch57x-2
 orientation: normal
-rows: 1
+rows: 2
 columns: 3
 knobs: 1
 layers:
   - buttons:
       - [ctrl-shift-c, ctrl-alt-t, ctrl-alt-shift-f]
+      - [previous, play, next]
     knobs:
       - ccw: volumedown
         press: mute
@@ -190,7 +189,7 @@ labels:
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | How the pieces fit together and why |
 | [docs/configuration.md](docs/configuration.md) | Every config file and field |
-| [docs/development.md](docs/development.md) | Working on the code, and the GNOME reload rules |
+| [docs/development.md](docs/development.md) | Working on the code, and KDE Plasma reload rules |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | When something does not work |
 | [docs/spec.md](docs/spec.md) | The original design spec |
 
@@ -204,9 +203,10 @@ src/macropad_manager/       Python package
     gui.py                  GTK4/libadwaita editor
     cycle.py                macropad-cycle entry point
     status.py               macropad-status entry point
-    window.py               macropad-window entry point
-extension/                  GNOME Shell extension (GJS)
-    macropad-hud@flanshaw.org/
+    window.py               macropad-window entry point (compat stub)
+plasmoid/                   Plasma 6 HUD widget
+    org.flanshaw.macropadhud/
+profiles/                   starter profiles install.sh seeds on first run
 systemd/                    user unit for login restore
 docs/                       documentation
 install.sh                  one-shot installer
@@ -216,16 +216,17 @@ install.sh                  one-shot installer
 
 ## Known limitations
 
-- **GNOME/Wayland only.** Global hotkeys go through GNOME's custom keybinding
-  mechanism, and the HUD is a GNOME Shell extension.
+- **KDE Plasma 6 / Arch only.** Global hotkeys ride on `kglobalshortcutsrc` and
+  command shortcuts, and the HUD is a Plasma widget. The `ch57x-keyboard-tool`
+  CLI behaves the same on any platform.
 - **No chorded keys** (key1+key2 together) — a firmware limitation of the
   device, not something this app can add.
-- **Editing `extension.js` requires a re-login.** GNOME 50 removed the
-  `ReloadExtension` D-Bus method and Wayland cannot restart the shell in place.
-  See [docs/development.md](docs/development.md).
+- **Shortcut/hotkey changes need a re-login.** Plasma applies new global
+  shortcuts and `plasmoids/` additions at session start.
 - The HUD renders one knob, so it shows whichever knob action carries a label.
-- **Knob window switching walks the current workspace only**, and needs the HUD
-  extension enabled — the knob's hotkeys are inert without it.
+- **Knob window switching walks the current workspace only**, and relies on
+  KWin's built-in `Walk Through Windows` / `Overview` shortcuts keeping the
+  chords `install.sh` adds.
 
 ---
 

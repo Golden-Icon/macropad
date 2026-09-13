@@ -1,7 +1,7 @@
 [project]
 name = "macropad-manager"
-version = "0.3.0"
-description = "Layer/profile manager for CH57x 3-key + 1-knob macropad"
+version = "0.4.0"
+description = "Layer/profile manager for CH57x 6-button (3x2) + knob macropads on KDE Plasma"
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0"]
 

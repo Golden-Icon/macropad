@@ -16,17 +16,22 @@ STATE_FILE = CONFIG_DIR / "state.json"
 
 TOOL = "ch57x-keyboard-tool"
 
-# Slot keys used by the GUI/editor, in display order.
-SLOTS = ["button1", "button2", "button3", "knob_ccw", "knob_press", "knob_cw"]
+# Device geometry: a 3x2 button grid plus a single knob. Slot keys used by the
+# GUI/editor/HUD, in display order (row-major: top row left->right, then bottom).
+BUTTON_ROWS = 2
+BUTTON_COLUMNS = 3
+BUTTON_SLOTS = [f"button{i}" for i in range(1, 1 + BUTTON_ROWS * BUTTON_COLUMNS)]
+KNOB_SLOTS = ["knob_ccw", "knob_press", "knob_cw"]
+SLOTS = BUTTON_SLOTS + KNOB_SLOTS
 
 DEFAULT_PROFILE = {
     "orientation": "normal",
-    "rows": 1,
-    "columns": 3,
+    "rows": BUTTON_ROWS,
+    "columns": BUTTON_COLUMNS,
     "knobs": 1,
     "layers": [
         {
-            "buttons": [["a", "b", "c"]],
+            "buttons": [["a", "b", "c"], ["d", "e", "f"]],
             "knobs": [{"ccw": "volumedown", "press": "mute", "cw": "volumeup"}],
         }
     ],
@@ -99,13 +104,18 @@ def save_profile(name: str, data: dict) -> Path:
 
 
 def profile_bindings(data: dict) -> dict[str, str]:
-    """Extract the 6 slot bindings from layer 1 of a profile dict."""
+    """Extract the slot bindings from layer 1 of a profile dict (row-major)."""
     out = dict.fromkeys(SLOTS, "")
     try:
         layer = data["layers"][0]
-        row = layer["buttons"][0]
-        for i in range(3):
-            out[f"button{i + 1}"] = str(row[i]) if i < len(row) else ""
+        rows = layer["buttons"]
+        for r, row in enumerate(rows):
+            for c in range(len(row)):
+                idx = r * BUTTON_COLUMNS + c
+                if idx >= len(BUTTON_SLOTS):
+                    break
+                if row[c] is not None:
+                    out[BUTTON_SLOTS[idx]] = str(row[c])
         knob = layer["knobs"][0]
         out["knob_ccw"] = str(knob.get("ccw", ""))
         out["knob_press"] = str(knob.get("press", ""))
@@ -137,13 +147,19 @@ def apply_labels(data: dict, labels: dict[str, str]) -> dict:
 
 
 def apply_bindings(data: dict, bindings: dict[str, str]) -> dict:
-    """Write the 6 slot bindings back into layer 1 of a profile dict."""
+    """Write the slot bindings back into layer 1 of a profile dict (3x2 grid)."""
     data = dict(data) if data else {}
     data.setdefault("orientation", "normal")
-    data["rows"], data["columns"], data["knobs"] = 1, 3, 1
+    data["rows"], data["columns"], data["knobs"] = BUTTON_ROWS, BUTTON_COLUMNS, 1
     layers = data.get("layers") or [{}]
     layer = layers[0] or {}
-    layer["buttons"] = [[bindings.get(f"button{i + 1}", "") for i in range(3)]]
+    grid = []
+    for row in range(BUTTON_ROWS):
+        grid.append([
+            bindings.get(f"button{row * BUTTON_COLUMNS + c + 1}", "")
+            for c in range(BUTTON_COLUMNS)
+        ])
+    layer["buttons"] = grid
     layer["knobs"] = [{
         "ccw": bindings.get("knob_ccw", ""),
         "press": bindings.get("knob_press", ""),

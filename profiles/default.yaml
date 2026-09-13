@@ -1,0 +1,24 @@
+model: ch57x-2
+orientation: normal
+
+# 3 columns x 2 rows = 6 buttons, one knob.
+# This is the user's pre-macropad-manager backup preserved as the default
+# profile: window movement on the keys, volume on the dial.
+rows: 2
+columns: 3
+knobs: 1
+
+layers:
+  - buttons:
+      # Row 1 (top): Left, Center, Right
+      - ["ctrl-alt-up", "ctrl-shift-up", "shift-alt-up"]
+      # Row 2 (bottom): Left, Center, Right
+      - ["ctrl-alt-down", "ctrl-shift-down", "shift-alt-down"]
+    knobs:
+      # Single knob
+      - ccw: "volumedown"
+        press: "play"
+        cw: "volumeup"
+
+labels:
+  knob_cw: VOL

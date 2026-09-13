@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Id": "org.flanshaw.macropadhud",
+        "Name": "Macropad HUD",
+        "Description": "Shows the active CH57x macropad profile, each button's label and binding, and the profile cycle list. Click a profile to switch; click the gear to open the editor.",
+        "Icon": "input-keyboard",
+        "Version": "0.4.0",
+        "License": "MIT",
+        "Category": "System Information",
+        "Authors": [
+            { "Name": "flanshaw", "Email": "flanshaw@flanshaw.org", "Task": "author" }
+        ],
+        "Homepage": "https://github.com/flanshaw/macropad"
+    },
+    "X-Plasma-API": "declarativeappletscript",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "X-Plasma-Provides": ["org.kde.plasma.core"]
+}

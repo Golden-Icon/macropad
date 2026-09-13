@@ -1,6 +1,6 @@
 """macropad-status: emit current state + bindings as JSON.
 
-Used by the GNOME Shell HUD extension, which has no YAML parser of its own.
+Used by the Plasma HUD widget, whose QML has no YAML parser of its own.
 """
 
 from __future__ import annotations

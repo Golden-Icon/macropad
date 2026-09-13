@@ -17,6 +17,9 @@ SLOT_LABELS = {
     "button1": "Button 1",
     "button2": "Button 2",
     "button3": "Button 3",
+    "button4": "Button 4",
+    "button5": "Button 5",
+    "button6": "Button 6",
     "knob_ccw": "Knob CCW",
     "knob_press": "Knob press",
     "knob_cw": "Knob CW",
@@ -81,18 +84,24 @@ class MainWindow(Adw.ApplicationWindow):
         diagram = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, halign=Gtk.Align.CENTER)
         self.key_labels: dict[str, Gtk.Label] = {}
         self.key_subs: dict[str, Gtk.Label] = {}
-        row = Gtk.Box(spacing=12)
-        for slot in ("button1", "button2", "button3"):
-            row.append(self._keycap(slot, 110, 90))
+        keys = Gtk.Box(spacing=12)
+        grid = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        for row in range(core.BUTTON_ROWS):
+            rbox = Gtk.Box(spacing=12)
+            for col in range(core.BUTTON_COLUMNS):
+                slot = f"button{row * core.BUTTON_COLUMNS + col + 1}"
+                rbox.append(self._keycap(slot, 110, 76))
+            grid.append(rbox)
+        keys.append(grid)
         knob_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, halign=Gtk.Align.CENTER)
         arrows = Gtk.Box(spacing=6)
         arrows.append(self._keycap("knob_ccw", 90, 60, "⟲ "))
         arrows.append(self._keycap("knob_press", 90, 90, "◉ "))
         arrows.append(self._keycap("knob_cw", 90, 60, "⟳ "))
         knob_col.append(arrows)
-        row.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
-        row.append(knob_col)
-        diagram.append(row)
+        keys.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+        keys.append(knob_col)
+        diagram.append(keys)
         main.append(diagram)
         main.append(Gtk.Separator())
 

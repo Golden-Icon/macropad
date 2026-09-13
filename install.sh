@@ -1,90 +1,180 @@
 #!/usr/bin/env bash
-# Install macropad-manager: pipx package, systemd user unit, GNOME Super+Q hotkey.
+# Install macropad-manager on Arch / CachyOS + KDE Plasma (Wayland or X11).
+#
+#   ./install.sh                    # default: Super+Q cycles profiles
+#   ./install.sh Meta+F9            # pick a different hotkey
+#
+# Sets up: the pipx package, a systemd user unit, the Plasma HUD plasmoid,
+# and KDE global shortcuts (Super+Q to cycle, knob chords for window switching
+# via KWin). Shortcuts made by hand in kglobalshortcutsrc take effect at the
+# next Plasma login, so the script ends by telling you to log out and back in -
+# the same deal the original GNOME version had with its Shell extension.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-HOTKEY="${1:-<Super>q}"
+# --- knob chords: these are the key combinations the macropad emits. --------
+# They must match the ccw/press/cw bindings in the window-switching profile.
+CHORD_PREV="${MACROPAD_CHORD_PREV:-Ctrl+Alt+Shift+F9}"
+CHORD_OVERVIEW="${MACROPAD_CHORD_OVERVIEW:-Ctrl+Alt+Shift+F10}"
+CHORD_NEXT="${MACROPAD_CHORD_NEXT:-Ctrl+Alt+Shift+F11}"
 
-echo "==> Checking prerequisites..."
-command -v ch57x-keyboard-tool >/dev/null ||
-  echo "    WARNING: ch57x-keyboard-tool not found on PATH - uploads will fail."
+# --- helpers ----------------------------------------------------------------
 
-UDEV_RULE=/etc/udev/rules.d/99-ch57x-macropad.rules
-if [ ! -e "$UDEV_RULE" ]; then
-  # Writing to the device needs permissions; not done automatically as it needs root.
-  echo "    WARNING: no udev rule for the macropad. Uploads will fail unless run"
-  echo "    as root. To fix (then replug the device):"
-  echo
-  echo "      echo 'SUBSYSTEM==\"usb\", ATTR{idVendor}==\"1189\", ATTR{idProduct}==\"8890\", MODE=\"0666\"' \\"
-  echo "        | sudo tee $UDEV_RULE"
-  echo "      sudo udevadm control --reload-rules && sudo udevadm trigger"
-  echo
+say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*"; }
+rc() { # kglobalshortcutsrc <group> <key> <value>
+    kwriteconfig6 --file "$HOME/.config/kglobalshortcutsrc" \
+        --group "$1" --key "$2" "$3"
+}
+
+# Add an extra chord on top of an existing KWin shortcut, preserving its
+# current bindings and defaults. The value format is
+#   <active shortcuts>\t<...>,<defaults>,<friendly name>
+add_kwin_chord() {
+    local action="$1" chord="$2" current active defaults
+    current=$(kreadconfig6 --file "$HOME/.config/kglobalshortcutsrc" \
+        --group kwin --key "$action" 2>/dev/null || true)
+    if [ -n "$current" ]; then
+        active=${current%%,*}
+        defaults=${current#*,}
+    else
+        # Seeded from the stock Plasma 6 defaults (several KWin actions only
+        # get written once they are customised).
+        case "$action" in
+            "Walk Through Windows")          active=$'Alt+Tab\tMeta+Tab' ; defaults=$'Alt+Tab\tMeta+Tab,Walk Through Windows' ;;
+            "Walk Through Windows (Reverse)") active=$'Alt+Shift+Tab\tMeta+Shift+Tab' ; defaults=$'Alt+Shift+Tab\tMeta+Shift+Tab,Walk Through Windows (Reverse)' ;;
+            "Overview")                      active='Meta+W' ; defaults='Meta+W,Toggle Overview' ;;
+            *) warn "unsupported KWin action: $action" ; return ;;
+        esac
+    fi
+    # only add if not already present
+    case "$active" in
+        *"$chord"*) ;;
+        *) rc kwin "$action" "$active"$'\t'"$chord,$defaults" ;;
+    esac
+}
+
+normalize_hotkey() {
+    # Accept GNOME-style (<Super>q) or KDE-style (Meta+Q) hotkeys and turn them
+    # into a Qt sequence, uppercasing the final key (Qt wants Meta+Q, not Meta+q).
+    local h="$1"
+    h="${h//<Super>/Meta+}"
+    h="${h//<>/}"
+    h="${h//>/}"
+    local base="" key=""
+    if [[ "$h" == *+* ]]; then
+        base="${h%+*}"
+        key="${h##*+}"
+        printf '%s+%s' "$base" "${key^^}"
+    else
+        printf '%s' "${h^^}"
+    fi
+}
+
+# --- 0. deps ----------------------------------------------------------------
+
+say "Checking dependencies..."
+PKGS=(python-yaml python-gobject gtk4 libadwaita python-pipx qt6-tools plasma-workspace)
+missing=()
+for p in "${PKGS[@]}"; do
+    pacman -Q "$p" &>/dev/null || missing+=("$p")
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+    echo "    Installing missing packages: ${missing[*]}"
+    sudo pacman -S --needed --noconfirm "${missing[@]}"
 fi
 
-echo "==> Installing package with pipx..."
-pipx install --force --system-site-packages .
+command -v ch57x-keyboard-tool >/dev/null ||
+    warn "ch57x-keyboard-tool not found in PATH - uploads will fail."
 
-echo "==> Installing systemd user unit..."
-mkdir -p ~/.config/systemd/user
-cp systemd/macropad-daemon.service ~/.config/systemd/user/
+# --- 1. device permissions ---------------------------------------------------
+
+UDEV_RULE=/etc/udev/rules.d/99-ch57x-macropad.rules
+if [ ! -e "$UDEV_RULE" ] && \
+   ! ls /usr/lib/udev/rules.d/50-ch57x-keyboard.rules &>/dev/null; then
+    echo "    Installing udev rule for the macropad (needs root)..."
+    echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1189", ATTR{idProduct}=="8890", MODE="0666"' \
+        | sudo tee "$UDEV_RULE" >/dev/null
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+    echo "    Replug the macropad afterwards if uploads still fail."
+fi
+
+# --- 2. the Python package ---------------------------------------------------
+
+say "Installing package with pipx..."
+if ! command -v macropad-cycle >/dev/null; then
+    pipx install --force --system-site-packages .
+fi
+
+# --- 3. systemd user unit (re-flash active profile at login) ----------------
+
+say "Installing systemd user unit..."
+install -Dm644 systemd/macropad-daemon.service \
+    "$HOME/.config/systemd/user/macropad-daemon.service"
 systemctl --user daemon-reload
 systemctl --user enable --now macropad-daemon.service || true
 
-echo "==> Installing GNOME Shell HUD extension..."
-UUID=macropad-hud@flanshaw.org
-EXTDIR=~/.local/share/gnome-shell/extensions/$UUID
-mkdir -p "$EXTDIR"
-cp extension/$UUID/* "$EXTDIR/"
-# GNOME Shell only scans for extensions at startup, so enable via gsettings
-# rather than `gnome-extensions enable` (which fails until the shell sees it).
-python3 - "$UUID" <<'PY'
-import ast, subprocess, sys
-uuid = sys.argv[1]
-cur = subprocess.run(['gsettings', 'get', 'org.gnome.shell', 'enabled-extensions'],
-                     capture_output=True, text=True).stdout.strip()
-lst = [] if cur in ('@as []', '[]') else ast.literal_eval(cur)
-if uuid not in lst:
-    lst.append(uuid)
-    subprocess.run(['gsettings', 'set', 'org.gnome.shell', 'enabled-extensions',
-                    '[' + ', '.join(f"'{x}'" for x in lst) + ']'], check=True)
-PY
+# --- 4. Plasma HUD plasmoid --------------------------------------------------
 
-BASE=org.gnome.settings-daemon.plugins.media-keys
+say "Installing Plasma HUD plasmoid..."
+UUID=org.flanshaw.macropadhud
+PLASMOID_DIR="$HOME/.local/share/plasma/plasmoids/$UUID"
+rm -rf "$PLASMOID_DIR"
+mkdir -p "$PLASMOID_DIR"
+cp -r "plasmoid/$UUID/." "$PLASMOID_DIR/"
 
-# register_hotkey <slug> <name> <command> <binding>
-register_hotkey() {
-  local slug=$1 name=$2 command=$3 binding=$4
-  local keypath=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/$slug/
-  local current new
-  current=$(gsettings get $BASE custom-keybindings)
-  if [[ "$current" != *"$keypath"* ]]; then
-    if [[ "$current" == "@as []" || "$current" == "[]" ]]; then
-      new="['$keypath']"
-    else
-      new="${current%]*}, '$keypath']"
-    fi
-    gsettings set $BASE custom-keybindings "$new"
-  fi
-  local schema="$BASE.custom-keybinding:$keypath"
-  gsettings set "$schema" name "$name"
-  gsettings set "$schema" command "$command"
-  gsettings set "$schema" binding "$binding"
-}
+# --- 5. seed default profiles on first run ----------------------------------
 
-echo "==> Registering GNOME custom keybinding ($HOTKEY -> macropad-cycle)..."
-register_hotkey macropad-cycle 'Macropad cycle profile' \
-  "$HOME/.local/bin/macropad-cycle" "$HOTKEY"
+say "Seeding default profiles (default.yaml, media.yaml)..."
+CFG_DIR="$HOME/.config/macropad-manager"
+if ! ls "$CFG_DIR/profiles/"*.yaml &>/dev/null; then
+    mkdir -p "$CFG_DIR/profiles"
+    cp profiles/default.yaml profiles/media.yaml "$CFG_DIR/profiles/"
+fi
 
-# The knob emits these chords; nothing types them by hand, so they are picked
-# to be unlikely to collide with an application shortcut.
-echo "==> Registering knob window-switching hotkeys..."
-register_hotkey macropad-window-prev 'Macropad knob: previous window' \
-  "$HOME/.local/bin/macropad-window prev" '<Control><Alt><Shift>F9'
-register_hotkey macropad-window-overview 'Macropad knob: toggle overview' \
-  "$HOME/.local/bin/macropad-window overview" '<Control><Alt><Shift>F10'
-register_hotkey macropad-window-next 'Macropad knob: next window' \
-  "$HOME/.local/bin/macropad-window next" '<Control><Alt><Shift>F11'
+# --- 6. global shortcuts ------------------------------------------------------
 
-echo "==> Done. Press $HOTKEY to cycle profiles; run 'macropad-manager' for the GUI."
-echo "    Log out and back in to load the desktop HUD (GNOME Shell only scans"
-echo "    for new extensions at session start)."
+say "Registering KDE global shortcuts..."
+mkdir -p "$HOME/.local/share/applications"
+
+# Super+Q -> macropad-cycle (a command shortcut, like System Settings'
+# "Add New -> Command or Script": a .desktop file + _launch action).
+HOTKEY_ARG="${1:-<Super>q}"
+HOTKEY="$(normalize_hotkey "$HOTKEY_ARG")"
+cat > "$HOME/.local/share/applications/macropad-cycle.desktop" <<EOF
+[Desktop Entry]
+Name=Macropad Cycle
+Comment=Cycle the macropad to the next profile
+Exec=$HOME/.local/bin/macropad-cycle
+Icon=input-keyboard
+Terminal=false
+Type=Application
+Categories=Utility;
+NoDisplay=true
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+rc macropad-cycle.desktop _k_friendly_name "Macropad Cycle"
+rc macropad-cycle.desktop/_launch _swapped false
+rc macropad-cycle.desktop/_launch _triggered true
+rc macropad-cycle.desktop/_launch _launch "$HOTKEY,$HOTKEY,Macropad Cycle"
+
+# knob chords -> KWin's native walk-through / overview
+add_kwin_chord "Walk Through Windows (Reverse)" "$CHORD_PREV"
+add_kwin_chord "Overview" "$CHORD_OVERVIEW"
+add_kwin_chord "Walk Through Windows" "$CHORD_NEXT"
+
+# --- done ---------------------------------------------------------------------
+
+say "Done. Press $HOTKEY to cycle profiles; run 'macropad-manager' for the GUI."
+echo
+echo "  Last step - Log out and back in so Plasma loads:"
+echo "    * the new Super+Q shortcut and the knob chords, and"
+echo "    * the Macropad HUD widget."
+echo
+echo "  Then add the HUD: right-click the desktop -> Add Widgets -> Macropad HUD."
+echo "  (On a desktop it sits on the wallpaper; add it to a panel to float"
+echo "  above windows, e.g. a small autohide panel at a screen corner.)"
+echo
+echo "  To set up the knob window-switching profile, open macropad-manager and"
+echo "  set a profile's dial as: ccw=$CHORD_PREV press=$CHORD_OVERVIEW cw=$CHORD_NEXT"

@@ -3,33 +3,31 @@
 ## Overview
 
 Four small programs share one directory of state. Nothing talks over a socket
-or a bus; the filesystem is the integration point, and file monitors provide
-change notification.
+or a bus; the filesystem is the integration point, and the HUD polls the CLI
+for changes.
 
 ```
-        Super+Q  ──▶  macropad-cycle  ──┐
-                                        │  writes state.json
-   HUD click     ──▶  macropad-cycle ──┤  uploads via ch57x-keyboard-tool
-                                        │
-   GUI save      ──▶  macropad-manager ─┤  writes profiles/*.yaml
-                                        │
-                                        ▼
+      Super+Q (Plasma) ─▶  macropad-cycle ──┐
+                                            │  writes state.json
+   HUD click        ─▶  macropad-cycle ────┤  uploads via ch57x-keyboard-tool
+                                            │
+   GUI save         ─▶  macropad-manager ──┤  writes profiles/*.yaml
+                                            │
+                                            ▼
                         ~/.config/macropad-manager/
-                                        │
-                       file monitors    │
-                                        ▼
-                   HUD (GNOME Shell extension)
-                        │
-                        └─▶ runs macropad-status ──▶ JSON ──▶ redraw
+                                            │
+          HUD polls macropad-status (JSON)  │
+                                            ▼
+                          Plasmoid (org.flanshaw.macropadhud)
 ```
 
 Consequences of this design:
 
 - The GUI does not need to run for cycling, the HUD, or the hotkey to work.
-- The HUD updates itself whenever any other component changes state, without
-  polling.
 - Any component can be replaced or scripted independently — `macropad-cycle`
   and `macropad-status` are ordinary CLIs.
+- The Plasma widget is a dumb view: it polls `macropad-status` and never
+  touches the config files itself.
 
 ## Components
 
@@ -43,9 +41,10 @@ through it.
   clamped into range.
 - `load_profile()` / `save_profile()` — profile YAML, always forcing
   `model: ch57x-2`.
-- `profile_bindings()` / `apply_bindings()` — map between the flat six-slot
-  view the UI uses (`button1..3`, `knob_ccw`, `knob_press`, `knob_cw`) and the
-  nested `layers[0]` structure the CLI expects.
+- `profile_bindings()` / `apply_bindings()` — map between the flat nine-slot
+  view the UI uses (`button1..6`, `knob_ccw`, `knob_press`, `knob_cw`) and the
+  nested `layers[0]` structure the CLI expects. Buttons are row-major:
+  `button1` is the top-left key of a 3x2 pad, `button4` the bottom-left.
 - `profile_labels()` / `apply_labels()` — the `labels:` extension key.
 - `validate()` / `upload()` — wrap `ch57x-keyboard-tool`, capturing stdout and
   stderr together so the GUI can display failures instead of swallowing them.
@@ -59,55 +58,51 @@ for `--restore`), uploads, and only then commits the new index to `state.json`
 
 ### `macropad-status`
 
-Prints the whole picture as JSON. Exists because the HUD is written in GJS,
-which has no YAML parser; rather than reimplement the format there, the
-extension shells out to Python and parses JSON.
+Prints the whole picture (`active_index`, and each profile's bindings and
+labels) as JSON. Exists because the HUD is written in QML, which has no YAML
+parser; rather than reimplement the format there, the widget runs this CLI and
+parses JSON.
 
 ### `macropad-manager` (GUI)
 
-GTK4 + libadwaita. Chosen over PyQt because PyGObject ships with Ubuntu GNOME,
-so there is no extra dependency and the window matches the desktop.
+GTK4 + libadwaita. PyGObject ships on Arch too, so there is no extra
+dependency. Editing operations save first and then act, so *Validate* and
+*Upload now* always operate on exactly what is on screen. Renaming a profile
+rewrites the file and repairs `state.json` order and active index in the same
+step.
 
-Editing operations save first and then act, so *Validate* and *Upload now*
-always operate on exactly what is on screen. Renaming a profile rewrites the
-file and repairs `state.json` order and active index in the same step.
+### HUD (Plasma 6 widget)
 
-### HUD (GNOME Shell extension)
+The original project's HUD was a GNOME Shell extension; GNOME does not allow
+applications to position their own windows and Mutter lacks layer-shell, so an
+extension was the only pinned-widget option. Plasma has no such constraint —
+a widget is how Plasma widgets work everywhere.
 
-Wayland does not let an application position its own window, and Mutter does
-not implement the layer-shell protocol that desktop widgets use on other
-compositors. A GNOME Shell extension draws directly on the shell, which is the
-only reliable way to pin a widget to a screen corner on GNOME/Wayland.
-
-- **Placement** uses the *work area*, not the monitor bounds, so the widget
-  clears docks and panels.
-- **Stacking** is switchable at runtime between the chrome layer (above
-  windows) and below `global.window_group` (desktop level).
-- **Refresh** is triggered by `Gio.FileMonitor` on `state.json`, the profiles
-  directory and `hud.json`, debounced by 250ms because a single save emits
-  several change events.
-- **Fonts** are applied as inline styles computed from `font_delta` rather than
-  fixed in the stylesheet, so size changes do not require reloading the
-  extension.
+- **Rendering** is a small QML scene: the active profile name, a 3x2 keycap
+  grid with the friendly label over the raw binding, a one-knob column, and the
+  clickable profile list.
+- **Refresh** is driven by `PlasmaCore.DataSource` with the `executable` data
+  engine, which runs `macropad-status` every 1.5 s and hands the JSON to the
+  QML. Polling (rather than file monitors) keeps the widget a dumb view.
+- **Interaction**: click a profile → `macropad-cycle --set <file>`; click the
+  gear → `macropad-manager`.
+- **Fonts and colors** come from `PlasmaCore.Theme`, so the widget follows the
+  user's desktop theme automatically.
 
 ### `macropad-window`
 
-A thin D-Bus client. The knob's rotation is bound to hidden GNOME hotkeys
-(`ctrl-alt-shift-f9/f10/f11`) whose command is `macropad-window prev|overview|
-next`; each call invokes `NextWindow`, `PrevWindow` or `ToggleOverview` on
-`org.flanshaw.MacropadHud`, exported by the HUD extension.
-
-The indirection is forced by Wayland: no client may raise or focus another
-application's window, so the actual switching has to happen inside GNOME Shell.
-The CLI exists only because GNOME's keybinding mechanism runs commands, not
-D-Bus calls.
+A compatibility stub. The original used a D-Bus client to ask a Shell extension
+to move focus, because only GNOME Shell may re-focus another window on Wayland.
+KWin imposes no such restriction: its *built-in* `Walk Through Windows` /
+`Overview` global shortcuts work directly, so the knob's chords are registered
+against KWin actions and nothing else is needed.
 
 ### `macropad-daemon`
 
 A `Type=oneshot` user unit running `macropad-cycle --restore` at login. The
 device forgets its mapping when unplugged or on reboot, so this re-flashes
 whatever `state.json` says is active. There is no long-running daemon process:
-GNOME invokes the hotkey command directly, so nothing needs to sit resident.
+Plasma invokes the hotkey command directly, so nothing needs to sit resident.
 
 ## Key decisions
 
@@ -116,23 +111,28 @@ implemented and maintained upstream. Note that the installed version reads
 configs from **stdin**, not a file argument, so `core._run_tool` pipes the file
 in.
 
-**Window switching by creation order, not MRU.** `get_tab_list` returns
-windows most-recently-used first, which reorders itself after every activation:
-two detents in the same direction would land back on the starting window.
-Sorting by `get_stable_sequence()` gives a list that is stable across the walk,
-so a full turn visits every window exactly once. The switcher also trusts its
-own cursor for a second after activating, since a fast burst of detents can
-outrun `get_focus_window()` catching up.
+**Reliable window switching with a knob that can't hold modifiers.** `alt-tab`
+needs Alt held down, which a knob cannot do between detents. Instead the knob
+types full chords that are registered (as *extra alternative bindings*) on
+KWin's native actions:
 
-**No switcher popup.** Each detent activates its window outright rather than
-highlighting it in an OSD. The knob has no "release" event to commit a
-selection on, so there is nothing to close a popup with.
+```
+knob CCW   -> Ctrl+Alt+Shift+F9   ->  Walk Through Windows (Reverse)
+knob press -> Ctrl+Alt+Shift+F10  ->  Overview
+knob CW    -> Ctrl+Alt+Shift+F11  ->  Walk Through Windows
+```
+
+No popup is shown and each detent activates its window outright — the knob has
+no "release" event to commit a selection with. Default KWin bindings
+(`Alt+Tab`, `Meta+Tab`, `Meta+W`) stay intact as alternatives.
 
 **Labels inside the profile YAML.** Storing them in a sidecar file would have
 kept profiles pristine, but it doubles the number of files to keep in sync.
 `ch57x-keyboard-tool validate` accepts unknown top-level keys, so `labels:`
 rides along in the same file and profiles remain directly usable with the CLI.
 
-**GNOME custom keybinding instead of raw key grabbing.** Global key grabs are
-unreliable or blocked under Wayland. Registering a custom shortcut through
-`gsettings` is the supported path, and it means no process has to be listening.
+**Plasma command shortcuts instead of raw key grabbing.** Global key grabs are
+unreliable or blocked under Wayland. A command shortcut — a `.desktop` file
+with `X-KDE-GlobalAccel-CommandShortcut=true` plus its `_launch` action in
+`kglobalshortcutsrc` — is the Plasma-supported route, and it means no process
+has to be listening.

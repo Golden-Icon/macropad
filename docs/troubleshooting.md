@@ -2,98 +2,80 @@
 
 ## The HUD does not appear
 
-**First, check whether it is loaded:**
+**First, check whether plasmashell sees it and its QML loads:**
 
 ```bash
-gnome-extensions info macropad-hud@flanshaw.org
-journalctl --user -b | grep macropad-hud
+journalctl --user -b | grep macropadhud
 ```
 
 | Symptom | Cause and fix |
 |---|---|
-| `does not exist` | The shell has not scanned it yet. Log out and back in |
-| `State: INACTIVE` | `gnome-extensions enable macropad-hud@flanshaw.org` |
-| `State: ERROR` | See the traceback in the journal output above |
-| `State: ACTIVE` but nothing on screen | Something is covering it — see below |
+| No lines at all, or `Could not create window` | The widget has not been installed. Run `./install.sh` and log out/in |
+| `qml: ...` errors near `PlasmaCore.DataSource` | QML syntax error — see the widget source in `~/.local/share/plasma/plasmoids/org.flanshaw.macropadhud/` |
+| Lines present but nothing on screen | The widget is installed but not placed on a desktop or panel — add it |
 
-**Active but invisible** almost always means `"stacking": "desktop"` combined
-with a desktop-icons extension. Desktop Icons NG (`ding`) is enabled by default
-on Ubuntu and covers the desktop with a full-screen window, hiding the widget
-and swallowing its clicks. Fix by floating the HUD above windows:
+To **add** the widget: right-click the desktop → *Add Widgets* → search for
+**Macropad HUD** and add it. On the desktop it sits on the wallpaper; drop it
+into a small autohide panel instead and it floats above windows.
 
-```bash
-echo '{"stacking": "top", "font_delta": 2}' > ~/.config/macropad-manager/hud.json
-```
-
-That applies immediately. To keep desktop level instead, disable the icons
-extension: `gnome-extensions disable ding@rastersoft.com`.
+No `hud.json` exists — fonts and colours come from the Plasma theme
+(`PlasmaCore.Theme`) automatically.
 
 ## Changes to the HUD have no effect
 
-If you edited `extension.js` or `stylesheet.css`, you must log out and back in
-— disabling and re-enabling the extension runs the cached module, not your new
-code, and `ReloadExtension` was removed in GNOME 50. Confirm which build is
-live with:
+If you edited `main.qml`, you must log out and back in (or restart plasmashell:
+`kquitapp6 plasmashell && plasmashell &`). QML templates are created from a
+compiled cache at load time, so editing the file on disk is not enough.
 
-```bash
-journalctl --user -b | grep "macropad-hud: enable"
-```
-
-Changes to `hud.json`, profiles and labels need no reload at all. See
-[development.md](development.md) for the full matrix.
+Changes to `profiles/*.yaml` need no reload — the HUD re-polls every 1.5 s.
+See [development.md](development.md) for the full matrix.
 
 ## `Super+Q` does nothing
 
-1. Confirm the binding is registered:
+1. Confirm the command shortcut is registered:
 
    ```bash
-   gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:\
-   /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/macropad-cycle/ binding
+   kreadconfig6 --file kglobalshortcutsrc --group macropad-cycle.desktop/_launch --key _launch
    ```
 
-   It should print `'<Super>q'`. It also appears in Settings → Keyboard → View
-   and Customize Shortcuts → Custom Shortcuts as "Macropad cycle profile".
+   It should print something like `Meta+Q,Meta+Q,Macropad Cycle`.
 
-2. If it is registered but unresponsive, log out and back in —
-   `gnome-settings-daemon` sometimes needs a session restart to pick up a newly
-   added custom shortcut.
+2. Confirm the `.desktop` file exists:
 
-3. Test the command directly. If this works but the hotkey does not, the
+   ```bash
+   cat ~/.local/share/applications/macropad-cycle.desktop
+   ```
+
+3. If registered but unresponsive, log out and back in — Plasma only loads new
+   command shortcuts at session start.
+
+4. Test the command directly. If this works but the hotkey does not, the
    problem is the binding, not the app:
 
    ```bash
    macropad-cycle
    ```
 
-4. Another application may have claimed the shortcut. Re-run the installer with
-   a different one: `./install.sh '<Super>F9'`.
+5. Another application may have claimed the shortcut. Re-run the installer with
+   a different one: `./install.sh Meta+F9`.
 
 ## The knob does not switch windows
 
-Only the `BT GM CL` profile is set up for it, so first check the HUD shows
-`WINDOW` under the knob.
-
-Test the chain from the bottom up:
+Check a profile's knob bindings first — `ccw`, `press`, and `cw` should be the
+`ctrl-alt-shift-f9/f10/f11` chords (see README). Then verify that KWin knows
+about them:
 
 ```bash
-macropad-window next          # should move focus; needs the HUD extension
-gdbus introspect --session --dest org.flanshaw.MacropadHud \
-  --object-path /org/flanshaw/MacropadHud
+for a in "Walk Through Windows (Reverse)" "Walk Through Windows" "Overview"; do
+  echo "=== $a ==="
+  kreadconfig6 --file ~/.config/kglobalshortcutsrc --group kwin --key "$a"
+done
 ```
 
-- **`ServiceUnknown` from either command** — the extension is not running the
-  version that exports the switcher. Confirm with
-  `journalctl --user -b | grep "macropad-hud: enable"`; anything below 0.3.0
-  means the shell is still running cached code, and only a **re-login** fixes
-  it (see *Changes to the HUD have no effect*).
-- **`macropad-window next` works but the knob does nothing** — the hotkeys are
-  missing. Re-run `./install.sh`, then check:
-  ```bash
-  gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings
-  ```
-  It should list `macropad-window-prev`, `-overview` and `-next`.
-- **The knob jumps between the same two windows** — the profile is still on
-  `alt-tab`. That cannot work; use the `ctrl-alt-shift-f9/f10/f11` chords.
+Each line's active field (before the first `,`) must include the chord. If
+the chords are missing, the installer has not run yet, or a fresh session is
+needed (KWin only reads `kglobalshortcutsrc` at startup).
+
 - **Some windows are skipped** — only windows on the *current workspace* are
   in the walk, and anything set to skip the taskbar is excluded.
 
@@ -109,7 +91,7 @@ macropad-cycle
 |---|---|
 | Permission / access denied | Missing udev rule — see [README](../README.md#device-permissions), then replug |
 | `device not found` / no device | `lsusb -d 1189:8890` to confirm it is connected |
-| `ch57x-keyboard-tool not found in PATH` | Install it, or ensure `~/.cargo/bin` is on `PATH` |
+| `ch57x-keyboard-tool not found in PATH` | Install the AUR package |
 | `error MapRes at: …` | An invalid binding name — check `ch57x-keyboard-tool show-keys` |
 
 Note that a failed upload deliberately leaves `active_index` unchanged, so the

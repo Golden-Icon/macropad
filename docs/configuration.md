@@ -6,7 +6,6 @@ safe to edit by hand — the GUI and HUD pick up external changes automatically.
 ```
 ~/.config/macropad-manager/
     state.json
-    hud.json
     profiles/
         default.yaml
         media.yaml
@@ -39,52 +38,6 @@ fails the recorded state still matches what is actually on the device.
 
 ---
 
-## `hud.json`
-
-Appearance and behaviour of the desktop widget. Read live — changes apply
-within about 250ms, with no logout or extension reload.
-
-```json
-{
-  "stacking": "top",
-  "font_delta": 2
-}
-```
-
-### `stacking`
-
-| Value | Behaviour |
-|---|---|
-| `top` (default) | Floats above normal windows; automatically hidden while a fullscreen window is on the same monitor |
-| `desktop` | Sits above the wallpaper but below every window |
-
-`desktop` only works if nothing else owns the desktop layer. Desktop-icon
-extensions — including **Desktop Icons NG (`ding`), enabled by default on
-Ubuntu** — cover the desktop with a full-screen window that will hide the HUD
-completely and swallow its clicks. That is why `top` is the default. To use
-`desktop`, disable the icons extension first:
-
-```bash
-gnome-extensions disable ding@rastersoft.com
-```
-
-### `font_delta`
-
-Integer pixels added to every font in the HUD. May be negative. Base sizes are
-profile title 10, key labels 8, keycap text 8, section heading 8, profile list
-9; `font_delta` shifts all of them together. Keycaps grow to fit their text, so
-larger values will not clip.
-
-```bash
-# make everything noticeably bigger, applies immediately
-echo '{"stacking": "top", "font_delta": 6}' > ~/.config/macropad-manager/hud.json
-```
-
-Unrecognised or malformed values fall back to the defaults rather than
-breaking the widget.
-
----
-
 ## Profile YAML
 
 One file per profile in `profiles/`. These are ordinary `ch57x-keyboard-tool`
@@ -98,12 +51,13 @@ ch57x-keyboard-tool upload   < ~/.config/macropad-manager/profiles/default.yaml
 ```yaml
 model: ch57x-2          # always written by the app
 orientation: normal
-rows: 1
+rows: 2
 columns: 3
 knobs: 1
 layers:
   - buttons:
       - [ctrl-shift-c, ctrl-alt-t, ctrl-alt-shift-f]
+      - [previous, play, next]
     knobs:
       - ccw: volumedown
         press: mute
@@ -117,12 +71,13 @@ labels:                 # optional, this app only
 
 ### Slots
 
-The GUI and `macropad-status` use six flat slot names, which map onto the
-nested structure above:
+The GUI and `macropad-status` use nine flat slot names, which map onto the
+nested structure above (buttons row-major — `button1` is top-left of a 3x2 pad):
 
 | Slot | Position in the YAML |
 |---|---|
 | `button1`, `button2`, `button3` | `layers[0].buttons[0][0..2]` |
+| `button4`, `button5`, `button6` | `layers[0].buttons[1][0..2]` |
 | `knob_ccw` | `layers[0].knobs[0].ccw` |
 | `knob_press` | `layers[0].knobs[0].press` |
 | `knob_cw` | `layers[0].knobs[0].cw` |
@@ -150,17 +105,35 @@ will fail validation.
 
 ---
 
-## GNOME settings written by the installer
+## HUD (Plasma widget)
 
-These live in dconf rather than in this directory:
+The HUD is a Plasma 6 widget, so its look is governed by the desktop theme
+(`PlasmaCore.Theme`) — there is no `hud.json` and nothing to tune by hand. It is
+sized by Plasma like any panel/desktop widget:
 
-| Setting | Value |
-|---|---|
-| `org.gnome.settings-daemon.plugins.media-keys custom-keybindings` | gains `.../macropad-cycle/` |
-| `…custom-keybinding:/…/macropad-cycle/ name` | `Macropad cycle profile` |
-| `…custom-keybinding:/…/macropad-cycle/ command` | `~/.local/bin/macropad-cycle` |
-| `…custom-keybinding:/…/macropad-cycle/ binding` | `<Super>q` |
-| `org.gnome.shell enabled-extensions` | gains `macropad-hud@flanshaw.org` |
+- on the **desktop** it sits on the wallpaper (large, fine for a glance),
+- pinned to a **panel** it floats above windows and can be small/autohidden.
 
-The shortcut is visible in Settings → Keyboard → View and Customize Shortcuts →
-Custom Shortcuts as "Macropad cycle profile".
+It polls `macropad-status` every 1.5 s, so edits in the GUI appear within a
+couple of seconds.
+
+---
+
+## Shortcuts written by the installer
+
+Registration lives in `~/.local/share/applications/` and
+`~/.config/kglobalshortcutsrc`:
+
+| Component | Action | Binding |
+|---|---|---|
+| `macropad-cycle.desktop` (command shortcut) | `_launch` | `Meta+Q` (default `Super+Q`) |
+| `kwin` → `Walk Through Windows (Reverse)` | — | gains `Ctrl+Alt+Shift+F9` |
+| `kwin` → `Overview` | — | gains `Ctrl+Alt+Shift+F10` |
+| `kwin` → `Walk Through Windows` | — | gains `Ctrl+Alt+Shift+F11` |
+
+The KWin chords are *added* to the existing shortcuts (as extra alternative
+bindings), so the default `Alt+Tab` / `Meta+Tab` / `Meta+W` behaviour is
+unchanged. Plasma only (re)reads these at session start, hence the "log out and
+back in" step after installing.
+
+Changes are visible in System Settings → Shortcuts.
