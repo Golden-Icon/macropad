@@ -1,7 +1,9 @@
 # Macropad Layer Manager
 
-Profile ("layer") manager for CH57x-based **6-key (3x2) + 1-knob** USB macropads
-(VID:PID `1189:8890`) on Arch / CachyOS with KDE Plasma 6 (Wayland).
+A fork of [`flanshaw/macropad`](https://github.com/flanshaw/macropad), re-targeted
+from **GNOME Shell / Ubuntu** to **KDE Plasma 6 on Wayland**, and from the
+original **3-key pad** to the **6-button (3x2) + 1-knob** CH57x macropads
+(VID:PID `1189:8890`) on Arch / CachyOS.
 
 A single `Super+Q` press cycles to the next profile and re-flashes the device,
 so the same six keys can be copy/paste shortcuts while coding and media
@@ -15,6 +17,24 @@ keys currently do.
 This is a **companion to [`ch57x-keyboard-tool`](https://github.com/kriomant/ch57x-keyboard-tool)**,
 not a replacement — all writing to the device is done by shelling out to that
 CLI, and profiles are plain `ch57x-keyboard-tool` config files.
+
+---
+
+## New in this fork
+
+Everything below works on **KDE Plasma 6 / Wayland** and targets the
+**6-button (3x2) + knob** macropad. The original supported GNOME Shell on
+Ubuntu with the 3-key pad only.
+
+| Feature | Original | This fork |
+|---|---|---|
+| Desktop UI | GNOME Shell extension | Native **Plasma 6 widget** (`org.flanshaw.macropadhud`) |
+| Supported pad | 3 keys + 1 knob | **6 keys (3x2) + 1 knob** |
+| Global hotkey | GNOME custom keybinding (`gsettings`) | Plasma **command shortcut** (`kglobalshortcutsrc`) |
+| Knob window switching | Custom D-Bus bridge into the shell extension | **KWin's native** `Walk Through Windows` / `Overview` shortcuts |
+| OS / desktop | Ubuntu 24.04 / GNOME | **Arch / CachyOS / KDE Plasma 6** (Wayland or X11) |
+| Installer | APT-based | **`install.sh`** for pacman, systemd, and shortcut registration |
+| Starter profiles | — | Seeds `default` (window-mover) + `media` |
 
 ---
 
@@ -75,7 +95,7 @@ Replug the macropad afterwards.
 ## Install
 
 ```bash
-git clone https://github.com/flanshaw/macropad.git
+git clone https://github.com/Golden-Icon/macropad.git
 cd macropad
 ./install.sh                # or: ./install.sh '<Super>F9' for a different hotkey
 ```
@@ -134,7 +154,7 @@ knob CW    -> Ctrl+Alt+Shift+F11  ->  Walk Through Windows
 
 No helper is needed — KWin handles these natively on Wayland, walks every
 window once on a full turn, and the shortcuts keep their original default
-bindings (`Alt+Tab`, `Metak+Tab`, `Meta+W`) as alternatives.
+bindings (`Alt+Tab`, `Meta+Tab`, `Meta+W`) as alternatives.
 
 `install.sh` adds those three chords to the KWin actions. To use the knob this
 way in another profile, set its `ccw` / `press` / `cw` to the same chords.
